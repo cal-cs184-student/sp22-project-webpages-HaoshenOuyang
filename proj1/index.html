@@ -1,7 +1,264 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Rasterizer</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+<h1 align="middle">Project 1: Rasterizer</h1>
+<h2 align="middle">Haoshen Ouyang, 3035116865</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<p>In this assignment four main topic of rasterization been implement:
+  <br>1. Rasterizing triangle and transfrom tree  
+  <br>2. Antialiasing with super sampling
+  <br>3. Barycentric coordinates and pixel sampling for texture mapping
+  <br>4. Level Sampling to handle texture filtering and texture magnification problem
+</p>
+
+<h2 align="middle">Section I: Rasterization</h2>
+
+<h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
+
+<p>Check the order of the points of the triangle by (y2 - y0) * (x1 - x0) - (y1 - y0) * (x2 - x0)
+  <br>Construct 3 equaction to inspect the points is within the triangle or not
+  <br>	.For each edge of the triangle we construct a vector that orthonormal with the edge and connect point with the edge corner and check the angle between the orthonormal vector
+  <br>	.If triangle conter-clockwise, equaction output >= 0, point within the same region of the ortho vector direction
+  <br>	.If triangle clockwise, equaction output <= 0, point within the same region of the ortho vector direction
+  <br>When 3 equaction show points within the region, point inside the triangle
+  <br>
+  <br>Sorted the point xi and yi, and only check the points within the rectangle [y_min, y_max] [x_min, x_max] of the triangle whick mean no worse than the bounding box of triangle</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="t1.png" align="middle" width="700px"/>
+        <figcaption align="middle">Rasterized Triangle</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<br>
+
+<h3 align="middle">Part 2: Antialiasing triangles</h3>
+<p>
+  The over all idea of the supersampling in rasterize the triangle is: 
+  <br>Cut up each points in the region into Sqrt(sample-rate) * Sqrt(sample-size) even size sub-points
+  <br>	.Size of sample_buffer := width * height * Sqrt(sample-rate) * Sqrt(sample-size)
+  <br>	.Every color element within the sample_buffer is defalt as background color
+  <br>Inspect each sub-point within the triangle or not
+  <br>	.If the sub-point inside the region, chage the correspond sample-buffer color
+  <br>	.Under each (x,y) point of the sample-buffer, add up all of the subpoint color(include the background color) of the sub-point
+  <br>	.Take the average of the sub-points colors and add it to the correspond rgb_framebuffer_target so that some of the points that has small area inside the triangle can still appear in the graph in a blury color form 
+  <br> 	.(use extra memory and computation to lower the frequence of image to achive antialiasing) 
+</p>
+<p>
+  One of the bug I engage is average the color inside the rasterize-triangle function 
+  <br>	.The function can only handle one trangle's points in one call so to inclue the situaction that backgound and different layer of trianle stack up together
+  <br>	.Use extra memory to sample all the sub-points of the point in the buffer and average all of it together right before the transition to fram-buffer 
+</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="t2_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Rate1</figcaption>
+      </td>
+      <td>
+        <img src="t2_4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Rate4</figcaption>
+      </td>
+      <td>
+        <img src="t2_16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Rate16</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<br>
+		<p>
+			In the sample rate = 1, we inspect points with out supersampling, 
+			<br>.Some of the points been pass through by the triangle's edge but the middle dot (x+0.5, y+0.5) are not within the region(Aliasing)
+			<br>.When we increase the sample rate, thats mean each point been cut up into 4 or 16 small region 
+			<br>.Their middle point is place in the point space evenly, when inspect these sub-point, part of them been inclue into the triangle region, the pixil repond to the point can display in a lower grade color format to make the triangle look 'right'
+		</p>
+<br>
+
+
+<h3 align="middle">Part 3: Transforms</h3>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="t3.png" align="middle" width="700px"/>
+        <figcaption align="middle">Fly Kick</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<p>
+  Make the cubeman do a fly kick.
+  <br>.Add rotation in each part of the legs and hands
+  <br>.rotate by deire degree and translate the rotated body part to the desire position
+  <br>.transform="rotate(deg)" to rotate parts in degree in counter clockwise
+  <br>.transform="translate(dx dy)" to move the parts dx and dy away from the origin spawn position
+</p>
+<br>
+
+<h2 align="middle">Section II: Sampling</h2>
+
+<h3 align="middle">Part 4: Barycentric coordinates</h3>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="t4_1.png" align="middle" width="700px"/>
+        <figcaption align="middle">Color Triangle In Cordinate</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>
+  Barycentric coordinates is given a triangle in 2D space, we can repersent points (x,y) that inside the trangle by a liner combination of triangle vertices A, B, C. Which is V = (a * A + b * B + c * C)
+  <br> .a, b, c repersent how far point(x, y) is away from vertices (A, B, C)
+  <br> .In the graph, each angle of the triangle repersent one of the RGB color, V would be the color combination of RGB inside this triangle
+</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="t4.png" align="middle" width="700px"/>
+        <figcaption align="middle">Barycentric Coordinates Test</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<br>
+
+<h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
+
+<p>
+  When I want to display a patr of the texture onto the screen/window, I need to translate the cordinate of the screen to the cordinate of the texture.
+  <br>.To achives this, I first having a triangle region with 3 vertices to display the texture
+  <br>.Using Barycentric cordinate to compute the liner combination BC to repersent vectors in the triangle
+  <br>.Using the BC linear function translate the cordinate in screen space(x,y) to cordinate in texture space(u,v)
+  <br>.But the cordinate (u,v)(float)[0,1] are not always accurate to the actual samplable cordinate (u,v)(int)[texture size], here I used two pixel sampling methon, nearest and bilinear
+  <br>Nearest is (u,v) * (textur width-1, texture height-1) to scale the cordiante to texture size and round float(u,v) to nearest int(u,v) which is the nearest samplabel point in the texture
+  <br>.Nearest Sampling are lite weight to impliment but having issue to find point at sit right in the middle of multiple samplable points (0.5 always rount to 1)
+  <br>Bilinear smapling are more accurate in compaire and cost a little bit more computation to achive
+  <br>Scailing the (u,v) to the texture size and also using ceilling and trunic to find 4 or 2 cloest point around the (u,v) and calculate the weight average of these 4/2 points and out put the ideal point (u,v) to sample   
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="t5_nearest_1s.png" align="middle" width="600px"/>
+        <figcaption align="middle">Nearest_1s</figcaption>
+      </td>
+      <td>
+        <img src="t5_linear_1s.png" align="middle" width="600px"/>
+        <figcaption align="middle">Linear_1s</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>With no super sampling, the texture are looks more sharper and clear in detail when implement linear compaire nearest becasue it can capture the texture more accurate</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="t5_nearest_16s.png" align="middle" width="600px"/>
+        <figcaption align="middle">Nearest_16s</figcaption>
+      </td>
+      <td>
+        <img src="t5_linear_16s.png" align="middle" width="600px"/>
+        <figcaption align="middle">Linear_16s</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>In the 16 sample per pixel, the different is not obious because the supersample filter the high frequience to make the texture more blury</p>
+<br>
+
+<h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
+
+<p>
+  When we need to display a 3D space in to a 2D display, texture in differnt vision deptph will get compress or expand in a constant 2d space.
+  <br>.When display texture at high depth, one pixil in the 2D space will respond to multiple of texture pixils because things in distance will tend to look smaller (texture been compress), and the aliasing effect will start to appear.
+  <br>.When display texture at low depth(texture that right in front of the view point), the texture will scale up and for one pixil in 2D space only portion of the texture in one point will we display, and the textur will looks blury.
+  <br>To handle this situaction, we are using level sampling method with mipmap data structure
+  <br>.Store texture in different frequency in the mipmap, assign each frequency texture with level
+  <br>.When display texture at low depth(close), we use low level (high frequency) texture so that it looks less blury
+  <br>.When display texture at high depth(far away), we use hi level (low frequency) texture to achive antialiasing
+  <br>Level sampling is a method to deside which level of texture to use when we samping texture in different screen cordiante
+  <br>.Using barycentric coordinates to sample the target texture cordiante(x,y)->(u,v) and other two texture cordiante that one unit away from it (x+1, y)->(udx,vdx) ; (x, y+1)->(udy,vdy)
+  <br>.So we can use this 3 texture cordiante to compute the ration beteen the sreen space distance and texture space distance to know the depth of the texture
+  <br>.Knowing the depth of the texture we can pick the level the texture frequency to sample by differnet method
+  <br>..Nearest level sampling is round the depth of the texture to the closeest level and sample it
+  <br>..Liner level sampling is round the depth of the texture by flooring and ceilling. 
+  <br>..The front cloest level and back closeest level and sample both of the texture and compute the weighted total of two texture and return 
+</p>
+<p>
+  <h3>Pixel Sample, Level Sample, Sample per pixel</h3>
+  Come to memory useage, Level sampling are better than sample per pixel because level sample only take 4/3 of the origin taxture memory to store the mipmap but Sample per pixel need (sample/pixel) of the origin taxture size to accompilsh
+  <br>But the antialiasing power wise sample per pixel are better than level sample, and level sample combine with pixel sample (Trilinear sampling) need 7 linear equaction/log/sqrt calculation but samples per pixel only take the average 
+</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="LZ-PN.png" align="middle" width="600px"/>
+        <figcaption align="middle">L_ZERO/P_NEAREST</figcaption>
+      </td>
+      <td>
+        <img src="LZ_PL.png" align="middle" width="600px"/>
+        <figcaption align="middle">L_ZERO/P_LINEAR</figcaption>
+      </td>
+    </tr>
+    <br>
+    <tr>
+      <td>
+        <img src="LN_PN.png" align="middle" width="600px"/>
+        <figcaption align="middle">L_NEAREST/P_NEAREST</figcaption>
+      </td>
+      <td>
+        <img src="LN_PL.png" align="middle" width="600px"/>
+        <figcaption align="middle">L_NEAREST/P_LINEAR</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+</body>
 </html>
