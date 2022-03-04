@@ -1,7 +1,298 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <style>
+    body {
+      padding: 100px;
+      width: 1000px;
+      margin: auto;
+      text-align: left;
+      font-weight: 300;
+      font-family: 'Open Sans', sans-serif;
+      color: #121212;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: 'Source Sans Pro', sans-serif;
+    }
+  </style>
+  <title>CS 184 Mesh Editor</title>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+  <h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+  <h1 align="middle">Project 2: Mesh Editor</h1>
+  <h2 align="middle">Haoshen Ouyang, 3035116865</h2>
+
+  <br><br>
+
+  <div>
+
+    <h2 align="middle">Overview</h2>
+    <p>
+      This project breaks down in two sections, implementation of Bezier curve and surface for section 1 and 
+      utilization of half-edge mesh data structure to implement edge flip/split and mesh upsampling. 
+    </p>
+    <p>
+      I spend most of my time working on the 2nd part as the project is intended for us to get familiar with the half-edge mesh data structure, 
+      Which is a well known and commonly used data structure in the graphic area.
+    </p>
+    <p>
+      Reading documents and posudo code of the data structure is what takes most of my effort because it is my first time working with it. 
+      The flip and split process is a process of drafting the pre/post operation mesh sampling and mapping the mesh elements in the draft one by one into the function. 
+      Which also takes a long time to debug because it’s dry & long coding that involves little to no algorithm, which reads line by line to debug.
+    </p>
+
+    <h2 align="middle">Section I: Bezier Curves and Surfaces</h2>
+
+    <h3 align="middle">Part 1: Bezier curves with 1D de Casteljau subdivision</h3>
+
+    <p>Consider a sorted set with n points: 
+      <br>-Compute the subdivision of every neighbor two points with equation (SubPoint[i] = (1-t)*point[i] + t*point[i+1]) where t between 0-1 
+      <br>-Resulting with n-1 subdivision point 
+      <br>Repeat (recursive here but the source code already does it for me) the previous step with the subdivision points 
+      <br>-Until there is only one point in the set, that point represents the curve equation
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T1_1.png" align="middle" width="400px" />
+            <figcaption align="middle">Degree 5</figcaption>
+          </td>
+          <td>
+            <img src="T1_2.png" align="middle" width="400px" />
+            <figcaption align="middle">Degree 4</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="T1_3.png" align="middle" width="400px" />
+            <figcaption align="middle">Degree 3</figcaption>
+          </td>
+          <td>
+            <img src="T1_4.png" align="middle" width="400px" />
+            <figcaption align="middle">Degree 2</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="T1_5.png" align="middle" width="400px" />
+            <figcaption align="middle">Degree 1</figcaption>
+          </td>
+          <td>
+            <img src="T1_6.png" align="middle" width="400px" />
+            <figcaption align="middle">Degree 0</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <br>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T1_7.png" align="middle" width="400px" />
+            <figcaption align="middle">Modified</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+
+
+
+    <h3 align="middle">Part 2: Bezier surfaces with separable 1D de Casteljau subdivision</h3>
+    <p>
+      Think of the surface as a continuous set of lines(curves): 
+      <br>-In the Bezier surface instead of compute one curve, we compute a set of curves belonging to the surface 
+      <br>-Each curve with an input t (in this case is u) we can get one point per curve 
+      <br>-Combine these points in a new set and give it a new t (v for this part) we can come up a new curve and a point in this curve
+      <br>-which is a point inside the Bezier surface with (u,v)
+    </p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T2.png" align="middle" width="800px" />
+            <figcaption align="middle">Tea Pot</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+
+
+    <h2 align="middle">Section II: Sampling</h2>
+
+    <h3 align="middle">Part 3: Average normals for half-edge meshes</h3>
+    <p>
+      For one vertex of the mesh, traverse the face connected with the vertex:
+      <br>-Using function face->norm() compute the area weighted norm of the face:
+      <br>--Compute the cross product of two vertices of the face 
+      <br>--Divide it by its magnitude(magnitude of cross product = area of the face)
+      <br>-Add up all of the face norm
+      <br>Return the normalized sum
+    </p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T3_2.png" align="middle" width="400px" />
+            <figcaption align="middle">Flat</figcaption>
+          </td>
+          <td>
+            <img src="T3_1.png" align="middle" width="400px" />
+            <figcaption align="middle">Phong</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h3 align="middle">Part 4: Half-edge flip</h3>
+    <p>
+      I like to play safe in this part since this is the first triangle translation implementation with half-edge, follow the operation guide and draw out all the mesh elements before/after flip and update them one by one even if they stay the same.
+    </p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T4_pre.png" align="middle" width="400px" />
+            <figcaption align="middle">Pre Flip</figcaption>
+          </td>
+          <td>
+            <img src="T4_post.png" align="middle" width="400px" />
+            <figcaption align="middle">Post Flip</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <h3 align="middle">Part 5: Half-edge split</h3>
+    <p>
+      Draw out the origin mesh element and splited mesh element and follow the similar procedure of the task4
+     <br>But this time need to include new elements after collect all the initial elements because the split sill cause new vertex middle and new edge and face follow by it and new half-edges to connect these elements 
+     <br>After the mapping, I do need to delete some of the origin elements from the mesh because my draft of the pre/post split image
+     <br>-I could keep them and use it for new elements but I choose to discard it just to make the draft easier to read and trace
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T5_preS.png" align="middle" width="400px" />
+            <figcaption align="middle">Initial Pot</figcaption>
+          </td>
+          <td>
+            <img src="T5_postS.png" align="middle" width="400px" />
+            <figcaption align="middle">Some Edge Split</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T5_flip.png" align="middle" width="400px" />
+            <figcaption align="middle">Some Edge Flip</figcaption>
+          </td>
+          <td>
+            <img src="T5_flip_split.png" align="middle" width="400px" />
+            <figcaption align="middle">Edge Flip and Split</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h3 align="middle">Part 6: Loop subdivision for mesh upsampling</h3>
+    <p>
+      Dealing with the vertices:
+    <br>-Loop through all the existing vertices
+    <br>--These vertices are old vertices of the new mesh
+    <br>--Compute their weighted average vertex positions in the temper newPosition
+    <br>-Loop through all the existing edges 
+    <br>--All of middle point of these edge are considered the new vertices of new mesh
+    <br>--Compute their weighted average middle point position and store them in the temper newPosition
+    <br>
+    <br>Now dealing with the edges:
+    <br>-Loop through every old edge and split edges in half 
+    <br>-To recognize old edge and new edge, take the adjacent vertices of each edge as a/b and if both a/b are old vertices, this edge is old edges
+    <br>--After splits, set the middle point as a new vertex, and loop through the edges that are adjacent with the mid vertex, which are all new edges
+    <br>--Need to check which edges in these new edges are the edge that crosses the triangle and need to flip
+    <br>---If it’s not adjacent with a/b and not connect with new vertex, it’s a new edge that need to flip
+    <br>---Mark this edge as new edge and others as old edge (this process will not cause infinite loop in the edge loop because we check edge is old by its vertices nor the edge mark)
+    <br>
+    <br>Flip all the edges that mark as new
+    <br>Update all of the vertices position by its temper newPosition
+    <br>Update all edges and vertices as old for future use
+    </p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T6_c1.png" align="middle" width="400px" />
+            <figcaption align="middle">Basic Mesh</figcaption>
+          </td>
+          <td>
+            <img src="T6_c2.png" align="middle" width="400px" />
+            <figcaption align="middle">Upsampling Once</figcaption>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <img src="T6_c3.png" align="middle" width="400px" />
+            <figcaption align="middle">Sharp Edges and corners been smooth out</figcaption>
+          </td>
+          <td>
+            <img src="T6_c4.png" align="middle" width="400px" />
+            <figcaption align="middle">Some Cornors stay sharp after upsampling(triangle in the middle)</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <p>
+      There is sharp cornors in the mash that smoothed out after upsampling, this is because of the structur of the cornor not been a stable tetrahedron and it will not stay in shape afer split and flip
+      <br>To reduce the effect, flip the middle edge of each regtangle and construct stable tetrahedron cornors befor upsampling
+    </p>
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T6_s2.png" align="middle" width="400px" />
+            <figcaption align="middle">One of origin tetrahedron conor</figcaption>
+          </td>
+          <td>
+            <img src="T6_s3.png" align="middle" width="400px" />
+            <figcaption align="middle">Flip edges to make more tetrahedron conor</figcaption>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <img src="T6_s4.png" align="middle" width="400px" />
+            <figcaption align="middle">Upsampling and stay symmertic</figcaption>
+          </td>
+          <td>
+            <img src="T6_s5.png" align="middle" width="400px" />
+            <figcaption align="middle">Upsampling and stay symmertic</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <a href="https://cal-cs184-student.github.io/sp22-project-webpages-HaoshenOuyang/proj2/index.html">==============Write Up LInk====================</a>
+</body>
+
 </html>
