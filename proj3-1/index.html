@@ -1,7 +1,543 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {  
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+  </style> 
+<title>Haoshen Ouyang  |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body style="font-size:20px">
+<br />
+<h1 align="middle">Assignment 3: PathTracer</h1>
+    <h2 align="middle">Haoshen Ouyang</h2>
+
+    <div class="padded">
+        <h2 align="middle">Overview</h2>
+        <p>
+          In this project we work on the basics of the ray tracing rendering method, a physically-based renderer using a path tracing algorithm.
+        </p>
+
+        <p>
+          Part 1: Generate sample rays by a camera view point and a pixel coordinate in the screen, transfer it to the virtual world space, implement basic ray intersection with primitives(triangle/sphere).
+        </p>
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="CBbunny.png" align="middle" width="400px" />
+                <figcaption align="middle"></figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          Part 2: Implement a binary-tree base K-D tree data structure to speed up the ray tracing process by separating 3d world space into 3d hitboxes and letting rays tracy & skip these hitboxes along the binary tree.
+        </p>
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="p2.png" align="middle" width="400px" />
+                <figcaption align="middle">Hitboxes in 3D Space</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          Part 3: Start to work on the direct illumination of light rendering, use Monte Carlo integration to sample and estimate the radiance value that is reflected into the camera/screen view point from the rays first interaction point, which can be a light source or a material reflecting light from light source.
+        </p>
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="p3_improtantSample.png" align="middle" width="400px" />
+                <figcaption align="middle">Direct Illuminance with Important Sampling</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          Part 4: Compute indirect illumination which is light bounces multiple times in the environment and passes into the view point. Using recursion sampling and Russian Roulette method for termination to compute complex lighting/radiance value. Combine it with the direct illumination we got the global illumination light effect of the rendering.
+        </p>
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunny_m100.png" align="middle" width="400px" />
+                <figcaption align="middle">Light with 100 Bounces Max</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>
+          Part 5: Finally, using adaptive sampling method to sample different amounts of sample rays in different pixels(more complex light, more samples) to speed up the global illumination rendering process.
+        </p>
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="adapt_bunny_rate.png" align="middle" width="400px" />
+                <figcaption align="middle">Sample Rate in Different Pixel</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+    <br>
+    <h2 align="middle">Part 1: Ray Generation and Intersection</h2>
+        <p>In ray tracing-rendering, we track the light ray that enters the camera pixel position, 
+          but in the real world there is an uncountable amount of light ray that enters on pixel position from different light sources and bouncing surfaces. 
+          So in ray tracing we invert the direction of the light ray and tracing the ray from camera to pixel and the extension of it.</p>
+        <p>To generate a ray, pick a point in the image space and apply transform and scaling matrix to the point vector with homogeneous coordinate, 
+          result the point vector at camera space, we set the camera at the origin of the camera space and use these two point 
+          to generate a ray with these two point. Apply transform matrix c2w with the direction vector and get the direction of the camera in the world space, 
+          so now we have a ray at the world space that goes from camera to the image point and extends to the world to trace.</p>
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="p1_transform_1.png" align="middle" width="600px" />
+                  <figcaption align="middle">Space Translation</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="p1_transform_2.png" align="middle" width="400px" />
+                  <figcaption align="middle">Basic Coordinate Transformation and Scaling</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+        <p>Marking the first intersection point of the ray and the first engaged object(triangle mesh, sphere surface). Collect the light this intersection point reflected into the ray line.
+            For precision of each image point, we collect the integral of radiance over this pixel with Monte Carlo estimation. To achieve Monte Carlo estimation, we collect the average of the random rays that go through the unit pixel square and treat it as the integral. </p>
+            <div align="middle">
+                <table style="width=100%">
+                  <tr>
+                    <td>
+                      <img src="p1_intergal.png" align="middle" width="400px" />
+                      <figcaption align="middle"></figcaption>
+                    </td>
+                  </tr>
+                </table>
+            </div>
+        <p>For ray-surface intersections with triangle mesh. These intersection points can be determined by the Moller Trumbore algorithm. 
+
+            The Moller Trumbore algorithm assumes the ray is intersect with the triangle and has an intersection point inside the triangle, constructs the Barycentric coordinate equation of the point and combines it with the ray formular.</p>
+            <div align="middle">
+                <table style="width=100%">
+                  <tr>
+                    <td>
+                      <img src="p1_cordinate.png" align="middle" width="400px" />
+                      <figcaption align="middle"></figcaption>
+                    </td>
+                  </tr>
+                </table>
+            </div>
+        
+        <p>Resulting in a simple vector base equation that produces the time t of the ray and the weight(b1, b2, b3) of the Barycentric coordinate. Check the time t is within the desired range to see the ray’s intersection with the triangle plane, check the weight of the Barycentric coordinate is valid or not to see the assumption’s correctness.</p>
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="p1_cordinate_2.png" align="middle" width="400px" />
+                  <figcaption align="middle">b1,b2,b3 only vaild when they [0,1], t must [t_min,t_max], (t_min,t_max >= 0)</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <p>Some images rendered normal-shading</p>
+
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="CBspheres.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBspheres</figcaption>
+                </td>
+                <td>
+                  <img src="CBgems.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBgems</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="CBbanana.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBbanana</figcaption>
+                </td>
+                <td>
+                  <img src="CBbunny.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBbunny</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <br>
+
+        <h2 align="middle">Part 2: Bounding Volume Hierarchy</h2>
+
+        <p>To trace the ray interaction, the brute force way that checks every primitive that is inside the since is too expensive to run and inefficient. 
+          To accelerate the tracing, we want to focus on the primitives that are along the ray’s path. Here we are using a K-D tree data structure to store primitives 
+          in a 3D space in a binary-tree(2-D tree) fashion. </p>
+        <p>There are leaf nodes and branch nodes to construct the BVH, each node contains a bound box object to 
+          determine a 3D space that includes all the primitives inside it. Leaf nodes are nodes that contain small amounts 
+          of the primates that are fast enough to tracy rays with every one of them. Branch nodes have child nodes, 
+          left node and right node. Each child node can be another branch node or leaf node. </p>
+        <p>Every time branch node branch to left and right, it will split the current node’s bound box in half by it’s longest axi(max(x,y,z) of max-point - min-point), 
+          to determine the split point along the axi, collect the average positions of every primitives in the node, sort the primitives that 
+          smaller than average-point[axi] to the left node and others to the right-node by partition. To prevent the empty node situation, 
+          when we find an empty node will occur after partition, get the middle primitive at the primitive vector and split the node by it. 
+          Repeat these processes recursively and return the nodes to its parent node until back to the root node.</p>
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="maxplanck.png" align="middle" width="400px" />
+                  <figcaption align="middle">maxplanck (>2min -> 0.25s)</figcaption>
+                </td>
+                <td>
+                  <img src="cow.png" align="middle" width="400px" />
+                  <figcaption align="middle">cow (40s -> 0.17s)</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="CBlucy.png" align="middle" width="400px" />
+                <figcaption align="middle">lucy (>2min -> 0.22)</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+        <p>After the implantation of the BVH, we are able to track the primitives along the ray’s path by tracking the boundary box in the K-D tree node. 
+          Start from the root node, at each node, we check the ray is intersect with the box or not, 
+          if ray did not intersect, we can just ignore the child node under this node, if it intersect, we go down it child node until engage leaf node and check 
+          intersect point with primates inside leaf nodes, check all the leave node along the path that has insertion with the box. By doing this, in each step in iteration, 
+          we can ignore half of the area(ideally) in the 3d space that doesn't intersect with the ray, and skip the primates along that space. 
+          To achieve O[log(N)] runtime(binary tree). After the BVH, we can speed up the rendering of the cow scene from 40s to 0.17s. Before BVH, 
+          the sense of the Maxplanck and Lucy were too big that took too long to render, and now speed up to 0.22s and 0.25s rendering time.</p>
+        
+        <br>
+
+
+        <h2 align="middle">Part 3: Direct Illumination</h2>
+        <p>
+          In part3, we implement two types of direct light sampling, one is sampling the light uniformly in a hemisphere around the intersection point. 
+          One is important sampling that samples light from the light source in the environment. 
+          Both of the sampling uses Monte Carlo Integration to deal with the light sampling integration. 
+        </p>
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="p3_SolveInter.png" align="middle" width="400px" />
+                <figcaption align="middle">Monte Carlo Integration and Reflection Equaction</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <p>
+          For uniform sampling, we know the pdf of the sampling light is uniformly distributed with probability of 1/(2PI). And number of sample already compute by TA that is (number of light per unit area * numbers of light source). 
+         <br> -In each sample process, we gain a sample direction from the sampler and convert it from object coordinate to world coordinate. Combine the interaction point with it and we get a ray from the hit point to the sample direction. 
+         <br> -And we check if this ray is intercept with anything (we also need to set the ray start at the front of the point to prevent it hitting itself). 
+         <br> -If it hit, we got the light emitted from the object. And the BSDF(light absorb & transform function) of the hit point with the sample direction. 
+         <br> -Also the cos_theta of the sample direction. Put them into the sample equation.
+        <br> Add all of the samples up and average them by numbers of samples.
+        </p>
+
+        <p>
+          To implement the important sampling. We can make some changes in the uniform sampling. 
+        <br> -First instead of loop by the sample number, we loop by the light source vector. 
+        <br> -In each light source sampling, we check if it is a point light source or not, if it is point light, we only sample once because it emits the light uniformly anyway. 
+        <br> -If it’s not a point light we get an average of the light per sample area of that light source. 
+        <br> -When we sample the light, we change the ray max light by distance from point to light to save compute time/power(don’t forget to offset the distance by the min_time). 
+        <br> -Also this time when we check the interaction of the ray we know there is a light source at the end of the ray so we are checking if there is anything that blocks the light. 
+        <br>If there is no blocking, we add the sample light into the final result.
+        </p>
+
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="p3_uniformSample.png" align="middle" width="400px" />
+                <figcaption align="middle">Unifrom Sampling with 64 samples per area</figcaption>
+              </td>
+              <td>
+                <img src="p3_improtantSample.png" align="middle" width="400px" />
+                <figcaption align="middle">Important Sampling with 64 samples per area</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <p>
+          Unlike uniform sampling, the important light sampling only sampling the light from the light source. 
+          So it can avoid the noise of the uniform sampling that missample some of the light source(the little black dot in the rendered image)
+           because most of the random samples there return 0 light.
+        </p>
+
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="dragon_1sample_1lRay.png" align="middle" width="400px" />
+                <figcaption align="middle">1 Sample/Pixel, 1 Sample/Area light</figcaption>
+              </td>
+              <td>
+                <img src="dragon_1sample_4lRay.png" align="middle" width="400px" />
+                <figcaption align="middle">1 Sample/Pixel, 4 Sample/Area light</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="dragon_1sample_16lRay.png" align="middle" width="400px" />
+                <figcaption align="middle">1 Sample/Pixel, 16 Sample/Area light</figcaption>
+              </td>
+              <td>
+                <img src="dragon_1sample_64lRay.png" align="middle" width="400px" />
+                <figcaption align="middle">1 Sample/Pixel, 64 Sample/Area light</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <p>
+          In these four rendering images by important light sampling, we consist of 1 sample ray per pixel, but we increase the number of samples per area light from 1 to 64. 
+          The increase of the sample per area is not going to affect the point light source(they only sample once) but will greatly affect the performance of the light quality from none point light(reflected light source). 
+          In the 1 sample case we got a lot of noise because we have no average value and just a random light ray, when we increased the sampling size, we got more accuray average light bounce of other surfaces. And we can see more separation of the shadow and the light.
+        </p>
+
+        <h2 align="middle">Part 4: Global Illumination</h2>
+
+        <div align="middle">
+          <p>offset: 16 light ray</p>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunny_m100.png" align="middle" width="400px" />
+                <figcaption align="middle">CBbunny, max bounce 100, 1024 sample/pixcel</figcaption>
+              </td>
+              <td>
+                <img src="spheres.png" align="middle" width="400px" />
+                <figcaption align="middle">spheres, max bounce 100, 1024 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <p>
+          To implement the global illumination, we need to implement two types of light effect, first is direct light sampling from part 3 (light source to camera, light source to first intersection point of the ray), 
+          and second which is the soul of the global lighting is indirect light sampling, which is light that is not direct from the light source (bounced light from other material).
+        </p>
+
+        <div align="middle">
+          <p>offset: 16 light ray, 5 max depth</p>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="spheres_direct.png" align="middle" width="400px" />
+                <figcaption align="middle">spheres with direct light only(1024 sample/pixel)</figcaption>
+              </td>
+              <td>
+                <img src="spheres_indirect.png" align="middle" width="400px" />
+                <figcaption align="middle">spheres with indirect light only(1024 sample/pixel)</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+        
+        <p>
+          To implement indirect lightning sampling, we first check the max depth of the ray which stands for how many times the light ray is allowed to bounce in the environment, when the max light rays are only 0 or 1, that means it only counts direct lighting. 
+          So we can just use part 3’s functions. When it’s more than 1, we offset the light value as one bounce light value and start working on the indirect lighting recursion, at the start of the recursion(start case/current depth == max ray depth) we guarantee that the light ray start at the first interaction point will bounce at least once, 
+          so we use the similar method from the part 3, sample a input light direction from the output light direction(the ray direction been given), get the pdf of the light, BSDF of the bouncing surface, translate the direction into the world coordinate, construct a new ray by input light direction and bounce point, 
+          off set the ray timer, set the depth of the ray as current ray depth-1(we bounce it once here so -1 to keep the counting). Check the ray is intersect with any object, if not intersect, return the light value, else call the current function with the new intersection point and the incoming angle(recursion) to get the light value, multiplite it with the BSDF, 
+          cos_theta value and divide it with the pdf, add it onto the current light value, return it.
+        </p>
+
+        <p>
+          Here we only count the first bounce of the indirect light, but we might engage light rays that bounce infinitely if we don’t set the max depth or bounce too many times if the max depth is big which will take a lot of computation time and power. 
+          So we will implement the Russian Roulette method after the first bounce to terminate the recursion randomly and unbiased. 
+          It’s almost identical to the first bounce’s method but we add a probability of termination into the process, we set it to 0.3. 
+          We flip a virtual coin with 0.3 to false and 0.7 to true. If true we continue the bounce recursion and also divide the light value that we are going to add on the currence light value by the probability of continued recursion(0.7), else we return the light values and terminate the recursion. 
+        </p>
+
+        <div align="middle">
+          <p>offset: 16 light ray</p>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunny_m0.png" align="middle" width="400px" />
+                <figcaption align="middle">CBbunny, max bounce 0, 1024 sample/pixcel</figcaption>
+              </td>
+              <td>
+                <img src="bunny_m1.png" align="middle" width="400px" />
+                <figcaption align="middle">CBbunny, max bounce 1, 1024 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunny_m2.png" align="middle" width="400px" />
+                <figcaption align="middle">CBbunny, max bounce 2, 1024 sample/pixcel</figcaption>
+              </td>
+              <td>
+                <img src="bunny_m3.png" align="middle" width="400px" />
+                <figcaption align="middle">CBbunny, max bounce 3, 1024 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunny_m100.png" align="middle" width="400px" />
+                <figcaption align="middle">CBbunny, max bounce 100, 1024 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <p>
+          Since the max depth of the light ray means how many times the light into the camera allows it to bounce in the environment. 
+          When we increase the max value we can see more light being rendered into the image(look at the roof of the box), and the light and color become softer and more blend in(the back of the bunny).
+        </p>
+
+        <div align="middle">
+          <p>offset: 4 light ray, 5 max bounce</p>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunnyS1.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny, 1 sample/pixcel</figcaption>
+              </td>
+              <td>
+                <img src="bunnyS2.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny, 2 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunnyS4.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny, 4 sample/pixcel</figcaption>
+              </td>
+              <td>
+                <img src="bunnyS8.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny, 8 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunnyS16.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny, 16 sample/pixcel</figcaption>
+              </td>
+              <td>
+                <img src="bunnyS64.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny, 64 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="bunnyS1024.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny, 1024 sample/pixcel</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <p>Increasing number of samples per pixel reduce the noise of the rendering</p>
+
+        <h2 align="middle">Part 5: Adaptive Sampling</h2>
+
+        <p>To speed up the runtime of the global illumination method, we can use adaptive sampling techniques.
+           Instead of doing the same number of samples at each pixel, we can sample less when the current pixel has less variance of light, and sample more when the current pixel has complex lighting.</p>
+        <p>
+          To implement the adaptive sampling, we add some extra features at the raytrace_pixel() function from part 1 when we sample one pixel. 
+          To determine when to stop the sampling, we need to know if the current state of the total radiance of the sample pixel converges or not, 
+          first I keep track of the mean and standard deviation of the radiance state every time I sample a ray from the pixel. 
+          We get the illuminance of the radiance(3d vector) in float number form(Xk) and use the sum and square sum of them to compute the mean and standard deviation
+        </p>
+
+        <div align="middle">
+          <table style="width=100%">
+              <td>
+                <img src="p5_1.png" align="middle" width="800px" />
+                <figcaption align="middle">illuminance to mean and standard deviaction</figcaption>
+              </td>
+          </table>
+        </div>
+
+        <p>
+          In high numbers of pixel and sample rendering, this convergence can be a big extra computation weight if we check it every new sample, so we only check the convergence of every batch of samples. 
+          So we only need to add up the illuminance of the radiance every sampling.
+        </p>
+
+        <div align="middle">
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="p5_2.png" align="middle" width="400px" />
+                <figcaption align="middle"></figcaption>
+              </td>
+              <td>
+                <img src="p5_3.png" align="middle" width="400px" />
+                <figcaption align="middle"></figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <p>
+          To check the convergence, we use these two conditions to check its convergence or not where maxTolerance is a constant value we decided. 
+          If the condition is satisfied, terminate the current sampling, record the numbers of the samples used in the pixel for future reference and go on to sample the next pixel. 
+        </p>
+
+        <div align="middle">
+          <p>offset: 1 light ray, 5 max depth, 2048 max sample/pixel, 64 sample batch</p>
+          <table style="width=100%">
+            <tr>
+              <td>
+                <img src="adapt_bunny.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny</figcaption>
+              </td>
+              <td>
+                <img src="adapt_bunny_rate.png" align="middle" width="400px" />
+                <figcaption align="middle">bunny in sample rate display</figcaption>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <a href="https://cal-cs184-student.github.io/sp22-project-webpages-HaoshenOuyang/proj3-1/index.html">https://cal-cs184-student.github.io/sp22-project-webpages-HaoshenOuyang/proj3-1/index.html</a>
+</div>
+</body>
 </html>
+
+
+
+
