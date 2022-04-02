@@ -1,7 +1,270 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {  
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+  </style> 
+<title>Haoshen Ouyang |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body style="font-size:20px">
+<br />
+<h1 align="middle">Assignment 3: PathTracer</h1>
+    <h2 align="middle">Haoshen Ouyang</h2>
+
+    <div class="padded">
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="P1_sphere_m100.png" align="middle" width="400px" />
+                  <figcaption align="middle">Mirror and Glass Material</figcaption>
+                </td>
+                <td>
+                  <img src="P2_CBbunny_Brass.png" align="middle" width="400px" />
+                  <figcaption align="middle">Metal Material</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <p>This project is the continuation of the previous project 3_1. I work on part 1,2 and add two types of new material into the rendering.</p>
+        <p>In part 1, I implement mirror and glass models with both reflection and refraction ray tracing.</p>
+        <p>In part 2, I implement the isotropic Microfacet model, metal materials that only reflect.</p>
+
+    <br>
+
+    <h2 align="middle">Part 1: Mirror and Glass Models</h2>
+        <p>To implement the mirror materials, I first implement a helper function that gets the incoming light ray direction by the given output direction and the surface norm by using the reflection equation. 
+            The number of potential reflected light ray directions on the perfect ideal surface is only 1 so the PDF of the ray is 1.</p>
+        
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="reflectionEQ.png" width="480px" />
+                    <figcaption align="middle">Reflection Equation</figcaption>
+                </tr>
+            </table>
+        </div>
+
+        <p>To save some computation time we can do pre-calculation on the reflection equation to have a simplified version since the norm is (0,0,1).</p>
+
+        <p>To implement the glass materials, beside the reflection of light, I need to add the refraction effect of light going through the glass. 
+            I used Snell's Law to get the coordinate of the refracted light rays and implement the refraction function. </p>
+
+            <div align="center">
+                <table style="width=100%">
+                    <tr>
+                        <td align="middle">
+                        <img src="Snell.png" width="700px" />
+                        <figcaption align="middle"></figcaption>
+                    </tr>
+                </table>
+            </div>
+
+        <p>When working on the refraction, the outcome needs to separate into case the ray goes into the glass(wo.z > 0) and the ray exits out of the glass(wo.x <= 0). 
+            Also the sign of the outcome wi.z is the opposite of the wo.z and if the square root part of the outcome is invaild (we can only square root nonnegative value) the refraction is invaild and return fails.</p>
+
+        <p>When implementing the glass sample function, if refraction is invaild, only return the reflection of the light ray. 
+            When the refraction is valid, there are two light rays I can return. I used Schlick's reflection coefficient to determine which ray to go and set this coffiection as the pdf of the outcome and also time the coefficient with the output transmittance.</p>
+        
+            <div align="center">
+                <table style="width=100%">
+                    <tr>
+                        <td align="middle">
+                        <img src="Schlick.png" width="700px" />
+                        <figcaption align="middle">theta is the input vector, n1=1.0(air), n2=ior(glass)</figcaption>
+                    </tr>
+                </table>
+            </div>
+        
+        <p>CBspheres.dae rendered with max_ray_depth set to 0, 1, 2, 3, 4, 5, and 100. 64 samples per pixel, 4 samples per light</p>
+
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="P1_sphere_m0.png" align="middle" width="400px" />
+                  <figcaption align="middle">max_ray_depth 0</figcaption>
+                </td>
+                <td>
+                  <img src="P1_sphere_m1.png" align="middle" width="400px" />
+                  <figcaption align="middle">max_ray_depth 1</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <p>When max ray depth is 0, there is only light from the light source to the camera. 
+            When one light bounce is added, we get the full direct light illumination but the sphere can only reflect the light from the point light source.</p>
+
+            <div align="center">
+                <table style="width=100%">
+                    <tr>
+                        <td align="middle">
+                        <img src="P1_sphere_m2.png" width="400px" />
+                        <figcaption align="middle">max_ray_depth 2</figcaption>
+                    </tr>
+                </table>
+            </div>
+        <p>When light is able to bounce once more m=2, we are able to get the reflected light from the mirror sphere and glass sphere.</p>
+        
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="P1_sphere_m3.png" align="middle" width="400px" />
+                  <figcaption align="middle">max_ray_depth 3</figcaption>
+                </td>
+                <td>
+                  <img src="P1_sphere_m4.png" align="middle" width="400px" />
+                  <figcaption align="middle">max_ray_depth 4</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <p>To add one more bounce(m=3), we can receive lights that refract into the glass sphere.
+             And to add one more(m=4), we can see the lights that enter the glass / through the grass/ exit the glass(the light at the shadow).
+             And also we can see the glass ball in the reflection of the mirror sphere instead of a black ball.
+        </p>
+
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="P1_sphere_m5.png" align="middle" width="400px" />
+                  <figcaption align="middle">max_ray_depth 5</figcaption>
+                </td>
+                <td>
+                  <img src="P1_sphere_m100.png" align="middle" width="400px" />
+                  <figcaption align="middle">max_ray_depth 100</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <p>When max ray depth is 5, we can see the light refract from the glass sphere go to the wall and bounce to the camera, the mirror also has the full image of the glass sphere.
+             From this point on, m = 100 shows a brighter and better lighting of the environment, but there is more noise involved because we only take one of the rays from reflection and refraction.
+        </p>
+
+        <br>
+        <h2 align="middle">Part 2: isotropic Microfacet model</h2>
+
+        <p>To implement the microfacet model, I first start with the BRDF evaluation function</p>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="BRDFevaluationfunction.png" width="400px" />
+                    <figcaption align="middle"></figcaption>
+                </tr>
+            </table>
+        </div>
+
+        <p>Where the D(h) normal distribution function is incorporated with the roughness of the material alpha, here roughness is the distribution of the microfacet.</p>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="NDF.png" width="480px" />
+                    <figcaption align="middle"></figcaption>
+                </tr>
+            </table>
+        </div>
+
+        <p>Different rander of CBdragon_microfacet_au with different alpha values constant at 128 samples per pixel and 4 samples per light, max ray depth of 7</p>
+        
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="P2_dragon_a005.png" align="middle" width="400px" />
+                  <figcaption align="middle">alpha = 0.005</figcaption>
+                </td>
+                <td>
+                  <img src="P2_dragon_a05.png" align="middle" width="400px" />
+                  <figcaption align="middle">alpha = 0.05</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="P2_dragon_a25.png" align="middle" width="400px" />
+                  <figcaption align="middle">alpha = 0.25</figcaption>
+                </td>
+                <td>
+                  <img src="P2_dragon_a5.png" align="middle" width="400px" />
+                  <figcaption align="middle">alpha = 0.5</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+        <p>The bigger alpha value is, the more spread out the microfacet is and the rougher and sandy the material it is. The smaller the alpha, the more concentrated the microfacet gose and the material more glossy.</p>
+
+        <p>Another component needed to implement in the BRDF evaluation function is the Fresnel term that represents the light property of the material. Follow the approximated equation.</p>
+
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="Fresnel_approximation.png" width="480px" />
+                    <figcaption align="middle"></figcaption>
+                </tr>
+            </table>
+        </div>
+        <p>η and k are used together to represent indices of refraction for conductors and they are record as RGB vector in each metarial</p>
+        <p>CBbunny render with brass material eta(0.4508 0.5292 0.9376) k(3.3806 2.7553 1.9274)
+            <br> and tianium eta(2.6640 2.5400 2.3075) k(3.7080 3.4300 3.0850)
+        </p>
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="P2_CBbunny_Brass.png" align="middle" width="400px" />
+                  <figcaption align="middle">Brass CBbunny alpha0.25</figcaption>
+                </td>
+                <td>
+                  <img src="P2_CBbunny_Tianium.png" align="middle" width="400px" />
+                  <figcaption align="middle">Tianium CBbunny alpha0.25</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+    
+        <p>I also need to change the sampling method from cosine hemisphere sampling (default) to importance sampling since metallic material is not diffuse material. 
+            To implement the important sampling, we sample the reflected norm h by the distribution value alpha and reflect a sample output from the input and h.
+             And calculate the pdf of sampling h and use it to calculate the pdf of the output wi.
+
+        </p>
+
+        <div align="middle">
+            <p>64 samples per pixel and 1 samples per light, max bounces of 5</p>
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="P2_CBbunny_cosinhem.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBbunny with cosine hemisphere sampling</figcaption>
+                </td>
+                <td>
+                  <img src="P2_CBbunny_important.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBbunny with important sampling</figcaption>
+                </td>
+              </tr>
+            </table>
+        </div>
+
+        <p>We can see the cosine hemisphere sampling is way more noiser than the important sampling</p>
+
+</div>
+</body>
 </html>
+
+
+
+
