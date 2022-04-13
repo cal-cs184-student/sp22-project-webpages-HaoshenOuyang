@@ -1,7 +1,419 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 4 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Mesh Editor</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body style="font-size:20px">
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+<h1 align="middle">Project 4: Cloth Simulator</h1>
+<h2 align="middle">Haoshen Ouyang, 3035116865</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<div class="padded">
+  <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="T1_full.png" align="middle" width="260px" />
+            <figcaption align="middle"></figcaption>
+          </td>
+          <td>
+            <img src="T2_pin4.png" align="middle" width="260px" />
+            <figcaption align="middle"></figcaption>
+          </td>
+          <td>
+            <img src="T3_sphere500.png" align="middle" width="260px" />
+            <figcaption align="middle"></figcaption>
+          </td>
+        </tr>
+      </table>
+  </div>
+  <div align="middle">
+    <table style="width=100%">
+      <tr>
+        <td>
+          <img src="T4_final.png" align="middle" width="400x" />
+          <figcaption align="middle"></figcaption>
+        </td>
+        <td>
+          <img src="T5_mirror.png" align="middle" width="400px" />
+          <figcaption align="middle"></figcaption>
+        </td>
+      </tr>
+    </table>
+  </div>
+  
+<p>In proj4, I built a clothes physics simulator by utilizing the mass / spring system and basic particle collision method in 4 different parts and an additional part using GLSL shader program to implement sharding effect onto the clothes.</p>
+<p>Part 1: Build the basic structure of the cloth by patting out an even 2 dimension rectangle point-masses and connecting different types of springs between their own neighbors.</p>
+<p>Part 2: Implemented the basic physics simulation of the cloth. Applied external forces onto the point-masses and correction forces from the spring. Compute / update point-mass' new positions using Verlet integration. Constrains the deformation of the cloth to prevent springs’ unstable deformation.</p>
+<p>Part 3: Apply particle collision detection to the cloth to simulate its collision with other objects like sphere and plane. If the point-masses inside other objects(colllied) bump it back to the nearest surface intersection point.</p>
+<p>Part 4: Included cloth’s self-collision detection to make sure cloth does not clip through itself. Implement spatial hashing to optimize the detection by letting each point-mass only check its surroundings point-masses.</p>
+<p>Part 5: Implemented a set of shaders using the GLSL shader program. Include diffuse shading, Blinn-Phong shading, texture mapping, bump and displacement mapping, and mirror shading.</p>
+
+<br>
+
+<h2 align="middle">Part I: Masses and springs</h2>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T1_full.png" align="middle" width="800px" />
+        <figcaption align="middle">Wireframe with all constraints</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>Construct a cloth wireframe by even paddout point-masses and adding different types of springs in between them.</p>
+<p>In C++ the point-masses vector is in 1D row major format, to translate total of (num_width_points x num_height_points) mass-points into the correct 2D coordination. Calculated it by by: (width * i / (num_width_points - 1)) as x, (height * j / num_height_points - 1) as y. Also account for the horizontally and vertically orientation by changing the 2D xy coordinate to xz plane in horizontal orientation, offset y-coordinate as 1 and offset z-coordinate as a small random number between -0.001 and 0.001 in vertical orientation.</p>
+<p>After creating point-masses, add the structural/ shearing/ bending springs to the springs vector by iterating through point-masses vector and following the rules of each constraint connected springs around each point-mass.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T1_noShearing.png" align="middle" width="800x" />
+        <figcaption align="middle">Wireframe without shearing constraints</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<div align="middle">
+<table style="width=100%">
+    <tr>
+      <td>
+        <img src="T1_onlyShearing.png" align="middle" width="800px" />
+        <figcaption align="middle">Wireframe with only shearing constraints</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<br>
+
+<h2 align="middle">Part II: Simulation via numerical integration</h2>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T2_pin4.png" align="middle" width="450px" />
+        <figcaption align="middle">pinned4.json in its final resting state</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>To implemented a basic cloth simulation that responds both to external forces and spring correction forces.
+ <br> First calculating the external forces, using F = ma and add it to each point mass's forces. If a spring type is enabled, I calculate the spring correction forces using Hooke's law and add it to one end of the point-mass and other with the negative/opposite direction force.
+ <br> Then updated the positions of the point masses using Verlet integration to integrate velocity and acceleration and adding a (1-d) damping term to account for the lot of energy over time.
+ <br> Finally, check that each point mass's position has not changed over maximum distance(1.1 * rest_length) from its adjacent point mass. If so, pulls the mass-points current position to the maximum distance position by add or minus the fix distance ((spr.pm_a->position - spr.pm_b->position).unit() * exceed_length) 
+  </p>
+
+  <div align="middle">
+    <table style="width=100%">
+      <tr>
+        <td>
+          <img src="T2_50ks.png" align="middle" width="400x" />
+          <figcaption align="middle">spring constant ks=50</figcaption>
+        </td>
+        <td>
+          <img src="T2_5000ks.png" align="middle" width="400px" />
+          <figcaption align="middle">spring constant ks=5000</figcaption>
+        </td>
+      </tr>
+    </table>
+  </div>
+  <p>Spring constant ks refer to the stiffness of a spring. When ks=50, the cloth bounced a lot more and also had a lot of small wrinkles(feels like microfiber from sportswear). It also bounced back harder at the end of the motion, showing that spring is very loose when kc is small. When ks = 5000, the cloth is much stiffer and has way less bounce and the wrinkles are way bigger(feels like cotton).</p>
+
+  <div align="middle">
+    <table style="width=100%">
+      <tr>
+        <td>
+          <img src="T2_15den.png" align="middle" width="400x" />
+          <figcaption align="middle">density=15</figcaption>
+        </td>
+        <td>
+          <img src="T2_3000den.png" align="middle" width="400px" />
+          <figcaption align="middle">density=3000</figcaption>
+        </td>
+      </tr>
+    </table>
+  </div>
+ <p>When density = 15, the density of the cloth is low so the weight of the cloth is lighter, the cloth drops way slower and easier to hold up its own shape after the motion. When density=3000 in the same cloth, the cloth weighed heavier, so when the cloth dropped way faster and most parts of it stayed flat after the motion.</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T2_lowDam.png" align="middle" width="400x" />
+        <figcaption align="middle">low damping</figcaption>
+      </td>
+      <td>
+        <img src="T2_highDam.png" align="middle" width="400px" />
+        <figcaption align="middle">hight damping</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<p>Damping refers to loss of energy in the spring over time. When the damping constant is small, the cloth will drop down back and forward while small oscillations happen in different areas of the cloth, showing that it lost energy slower and had more motion. While damping constant is high, the cloth falls slower and maintains most part flat the whole time, it also less likely to bounce back, that means the energy of the motion is lost immeradly after cloth release.</p>
+
+<br>
+
+<h2 align="middle">Part III: Handling collisions with other objects</h2>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T3_plan.png" align="middle" width="400x" />
+        <figcaption align="middle">shaded cloth droped on the plane</figcaption>
+      </td>
+      <td>
+        <img src="T3_sphere500.png" align="middle" width="400px" />
+        <figcaption align="middle">shaded cloth resting on a sphere</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>Handle point-masses’ collision with the sphere and plane object to achieve cloth’s interaction with these two objects.</p>
+<p>If point-mass inside a sphere that means the distance between point-mass and origin of the sphere is <= sphere’s radius. I will bump it back to the sphere’s surface by computing the intersection point of a ray from sphere origin to the point-mass direction(origin + radius*direction), using the interaction point find a correction vector direct from the point-mass last-position to the sphere surface, then update the point-mass’s position as (last-position + correction*(1-friction)) where (1-friction) is used to account for the sphere's friction.
+</p>
+<p>If point-mass collide with a plane, that means the last-position / position of the point-mass is at the different side of the plane, also be aware that when one of those positions are in the plane that also means collision. To detect this scenario, we compile two vectors, from point in the plane to the last-position and current position of the point-mass, dot product each of them with the unit normal vector of the plane. Because (dot(vectors, normal) = ||vector|| ||normal|| cos(angle_in-between)) where normal length is 1. If the cos(angle) of vector-current-position and vector-last-position is opposite sign(+-), the point-mass collides with the plane. Then we use the (-dot(vector-current-position, normal)+SURFACE_OFFSET) as length/time with normal vector as direction to compute the interaction point and update point-mass’ position same as the sphere case.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T3_sphere500.png" align="middle" width="400x" />
+        <figcaption align="middle">ks=500</figcaption>
+      </td>
+      <td>
+        <img src="T3_sphere5000.png" align="middle" width="400px" />
+        <figcaption align="middle">ks=5000</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="T3_sphere50000.png" align="middle" width="400x" />
+        <figcaption align="middle">ks=50000</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<p>The higher the spring constant ks is, the stiffer the springs of the cloth is, so in observation, as the ks increase, the cloth has better ability to hold its shape and more spread out.</p>
+
+<br>
+
+<h2 align="middle">Part IV: Handling self-collisions</h2>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T4_initial.png" align="middle" width="400x" />
+        <figcaption align="middle">Initial</figcaption>
+      </td>
+      <td>
+        <img src="T4_half_floded.png" align="middle" width="400px" />
+        <figcaption align="middle">Half of the drop</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="T4_floded.png" align="middle" width="400x" />
+        <figcaption align="middle">All floded up</figcaption>
+      </td>
+      <td>
+        <img src="T4_final.png" align="middle" width="400x" />
+        <figcaption align="middle">Final</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>In this part, before implementing the self collision detection, I Implement spatial hashing to make sure each point-mass only checks collisions with the point-masses that are close to it, so that I can save a lot of computation time and power. Divide the 3D spaces into multiple 3D boxes and treat them as a hash bucket and assign the mass-points within each box to the corresponding hash bucket. Hash each box with its coordinate with a prime number to make sure of its uniqueness.</p>
+
+<p>To implement the self_collide function, for each point-mass, check collision with all the points that are within the same hash bucket. If the distance between point-mass position and candidate position is smaller than (2 * thickness), construct a vector that extent the point-mass position to have the distance=(2 * thickness). Add all of these extension vectors together and take the average, also divide the average vector by (simulation_steps) offset, to scale the position correction and improve the accuracy. Add it to the current point-mass’s position.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T4_den5.png" align="middle" width="400x" />
+        <figcaption align="middle">density=5</figcaption>
+      </td>
+      <td>
+        <img src="T4_den50.png" align="middle" width="400px" />
+        <figcaption align="middle">density=50</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>When the density increases, in the process of the cloth falling on itself, the number of small folded layers are increasing.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T4_10ks.png" align="middle" width="400x" />
+        <figcaption align="middle">ks=10</figcaption>
+      </td>
+      <td>
+        <img src="T4_50000ks.png" align="middle" width="400px" />
+        <figcaption align="middle">ks=50000</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>The smaller the ks is, the more loose the spring is. When the cloth falls on itself as ks=10, the cloth is very flexible and deforms into a lot of small folds and bounces a lot. When ks=50000, the cloth doesn't bounce a lot and steady very fast and holds its own weight well and stack height.</p>
+
+<br>
+
+<h2 align="middle">Part V: Shaders</h2>
+
+<p>Shaders program takes in input like vertex or a triangle, processes them on the GPU when CPU processes other computations like raytracing, then outputs a 4D vector that carries information about color or displacement.</p>
+<p>In OpenGL, vertex shaders apply transformations to the vertices and pass the final position to the GPU and fragment shaders. Then fragment shaders find the attributes on fragments, calculate the color and pass it out.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="Blinn_Phong.jpg" align="middle" width="600px" />
+        <figcaption align="middle"></figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>The Blinn-Phong shading model is a combination of specular highlight and diffuse reflection and ambient lighting calculated separately and added together.</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T5_ambient.png" align="middle" width="400x" />
+        <figcaption align="middle">Ambient lighting only</figcaption>
+      </td>
+      <td>
+        <img src="T5_diffuse.png" align="middle" width="400px" />
+        <figcaption align="middle">Diffuse reflection only</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="T5_specular.png" align="middle" width="400x" />
+        <figcaption align="middle">Specular highlight only</figcaption>
+      </td>
+      <td>
+        <img src="T5_Blinn-Phong.png" align="middle" width="400x" />
+        <figcaption align="middle">Blinn-Phong</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>Texture mapping shader using my own custom texture</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T5_custom.png" align="middle" width="600px" />
+        <figcaption align="middle"></figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>Displacement and Bump Mapping</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T5_bump_cloth.png" align="middle" width="400x" />
+        <figcaption align="middle">Bump Cloth</figcaption>
+      </td>
+      <td>
+        <img src="T5_bump_sphere.png" align="middle" width="400px" />
+        <figcaption align="middle">Bump Sphere</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="T5_displacement.png" align="middle" width="400x" />
+        <figcaption align="middle">Displacement Sphere</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T5_bump_1616.png" align="middle" width="400x" />
+        <figcaption align="middle">Bump sphere in 16x16</figcaption>
+      </td>
+      <td>
+        <img src="T5_displace_1616.png" align="middle" width="400px" />
+        <figcaption align="middle">Displacement sphere in 16x16</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="T5_bump_128.png" align="middle" width="400x" />
+        <figcaption align="middle">Bump sphere in 128x128</figcaption>
+      </td>
+      <td>
+        <img src="T5_displace_128.png" align="middle" width="400x" />
+        <figcaption align="middle">Displacement sphere in 128X128</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>mirror shader on the cloth and on the sphere</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="T5_mirror_sphere.png" align="middle" width="400x" />
+        <figcaption align="middle">Mirror shader on sphere</figcaption>
+      </td>
+      <td>
+        <img src="T5_mirror.png" align="middle" width="400px" />
+        <figcaption align="middle">Mirror shader on cloth</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<a href="https://cal-cs184-student.github.io/sp22-project-webpages-HaoshenOuyang/proj4/index.html">https://cal-cs184-student.github.io/sp22-project-webpages-HaoshenOuyang/proj4/index.html</a>
+</body>
 </html>
